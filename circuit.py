@@ -46,6 +46,9 @@ def count(*V):
 def given(*V):
     return len(V) > 0 and len(V) == count(*V)
 
+def all(prop, G):
+    return [c[prop] for c in G]
+
 def identity(v):
     return v
 
@@ -54,11 +57,7 @@ def inverse(v):
 
 def reset():
     global counter
-    counter = {
-        'L': 1,
-        'S': 1,
-        'P': 1,
-    }
+    counter = defaultdict(lambda: 0)
 
 reset()
 
@@ -67,9 +66,9 @@ class Component:
 
     def __init__(self, *, E=None, I=None, Z=None, P=None, **kwargs):
         global counter
-        p = self.__class__.__name__[0]
-        self.name = p + str(counter[p])
+        p = self.__class__.__name__
         counter[p] += 1
+        self.name = p + str(counter[p])
         self.E, self.I, self.Z, self.P = E, I, Z, P
         for n, v in kwargs.items():
             self[n.upper()] = v
@@ -117,12 +116,12 @@ class Component:
     def __repr__(self):
         return str(self)
 
-Component.law('EI', Z=lambda E, I: E / I)
-Component.law('EZ', I=lambda E, Z: E / Z)
-Component.law('IZ', E=lambda I, Z: I * Z)
-Component.law('EI', P=lambda E, I: E * I)
-Component.law('PE', I=lambda P, E: P / E)
-Component.law('PI', E=lambda P, I: P / I)
+Component.law('EI', Z=lambda E, I: E / I, P=lambda E, I: E * I)
+Component.law('EZ', I=lambda E, Z: E / Z, P=lambda E, Z: E * E / Z)
+Component.law('IZ', E=lambda I, Z: I * Z, P=lambda I, Z: I * I / Z)
+Component.law('PE', I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
+Component.law('PI', E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
+Component.law('PZ', I=lambda P, Z: (P / Z) ** 0.5, Z=lambda P, Z: (P * Z) ** 0.5)
 
 class Load(Component):
     pass
@@ -135,33 +134,30 @@ class Circuit(Component):
         super().__init__(**kwargs)
         self.C = list(args)
 
-    def __add__(self, c):
-        self.C.append(c)
-        return self
-
     def __call__(self, *C):
         self.C.extend(C)
         if not C:
             super().__call__()
-            reset()
         return self
+
+    @property
+    def loads(self):
+        return [L for L in self.C if isinstance(L, Load)]
+
+    @property
+    def sources(self):
+        return [S for S in self.C if isinstance(S, Source)]
     
-    def __len__(self):
-        return len(self.C)
-    
-    def all(self, prop):
-        return [c[prop] for c in self.C]
-    
-    def solve_constant(self, prop):
+    def solve_constant(self, prop, G):
         change = False
         if not given(self[prop]):
-            for c in self.C:
+            for c in G:
                 if given(c[prop]):
                     self[prop] = c[prop]
                     change = True
                     break
         if given(self[prop]):
-            for c in self.C:
+            for c in G:
                 if given(c[prop]):
                     continue
                 c[prop] = self[prop]
@@ -170,15 +166,13 @@ class Circuit(Component):
     
     def solve_linear(self, prop, T=identity):
         change = False
-        if not given(self[prop]) and given(*self.all(prop)):
-            self[prop] = T(sum([T(value) for value in self.all(prop)]))
+        if not given(self[prop]) and given(*all(prop, self.loads)):
+            self[prop] = T(sum([T(value) for value in all(prop, self.loads)]))
             change = True
-        if given(self[prop]) and count(*self.all(prop)) == len(self) - 1:
-            for c in self.C:
-                if not given(c[prop]):
-                    s = sum([T(value) for value in self.all(prop) if value])
-                    c[prop] = T(T(self[prop]) - s)
-                    break
+        if given(self[prop]) and count(*all(prop, self.loads)) == len(self.loads) - 1:
+            c, = (c for c in self.loads if not given(c[prop]))
+            s = sum([T(value) for value in all(prop, self.loads) if value])
+            c[prop] = T(T(self[prop]) - s)
             change = True
         return change
 
@@ -204,7 +198,10 @@ class Circuit(Component):
 class Series(Circuit):
     def _solve(self):
         change = super()._solve()
-        change |= self.solve_constant('I')
+        # TODO: Fix multiple sources
+        change |= self.solve_constant('E', self.sources)
+        change |= self.solve_constant('I', self.sources)
+        change |= self.solve_constant('I', self.loads)
         change |= self.solve_linear('Z')
         change |= self.solve_linear('E')
         change |= self.solve_linear('P')
@@ -213,24 +210,11 @@ class Series(Circuit):
 class Parallel(Circuit):
     def _solve(self):
         change = super()._solve()
-        change |= self.solve_constant('E')
+        change |= self.solve_constant('E', self.C)
         change |= self.solve_linear('I')
         change |= self.solve_linear('P')
         change |= self.solve_linear('Z', inverse)
         return change
 
 l = Load
-s = Series
-p = Parallel
-lr = lambda x: l(r=x)
-li = lambda x: l(i=x)
-le = lambda x: l(e=x)
-lp = lambda x: l(p=x)
-sr = lambda x, *a: s(*a, r=x)
-si = lambda x, *a: s(*a, i=x)
-se = lambda x, *a: s(*a, e=x)
-sp = lambda x, *a: s(*a, p=x)
-pr = lambda x, *a: p(*a, r=x)
-pi = lambda x, *a: p(*a, i=x)
-pe = lambda x, *a: p(*a, e=x)
-pp = lambda x, *a: p(*a, p=x)
+s = Source
