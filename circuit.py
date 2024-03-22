@@ -55,23 +55,26 @@ def identity(v):
 def inverse(v):
     return 1 / v
 
-def reset():
-    global counter
-    counter = defaultdict(lambda: 0)
-
-reset()
-
 class Component:
     laws = defaultdict(list)
+    counter = defaultdict(lambda: 0)
 
     def __init__(self, *, E=None, I=None, Z=None, P=None, **kwargs):
-        global counter
         p = self.__class__.__name__
-        counter[p] += 1
-        self.name = p + str(counter[p])
+        Component.counter[p] += 1
+        self.name = p + str(Component.counter[p])
         self.E, self.I, self.Z, self.P = E, I, Z, P
         for n, v in kwargs.items():
-            self[n.upper()] = v
+            n = n.upper()
+            if n == 'R':
+                n = 'Z'
+            self[n] = v
+    
+    def __add__(self, other):
+        return Series(self, other)
+    
+    def __truediv__(self, other):
+        return Parallel(self, other)
     
     def __getitem__(self, prop):
         return getattr(self, prop, None)
@@ -105,15 +108,13 @@ class Component:
             self.solve()
         return change
     
-    def __call__(self):
-        self.solve()
-        return self
-    
     def __str__(self, indent=''):
         parts = [p + '=' + norm(p, self[p]) for p in 'EIZP']
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
     def __repr__(self):
+        self.solve()
+        Component.counter.clear()
         return str(self)
 
 Component.law('EI', Z=lambda E, I: E / I, P=lambda E, I: E * I)
@@ -136,13 +137,11 @@ class Circuit(Component):
 
     def __call__(self, *C):
         self.C.extend(C)
-        if not C:
-            super().__call__()
         return self
 
     @property
     def loads(self):
-        return [L for L in self.C if isinstance(L, Load)]
+        return [L for L in self.C if not isinstance(L, Source)]
 
     @property
     def sources(self):
@@ -206,6 +205,10 @@ class Series(Circuit):
         change |= self.solve_linear('E')
         change |= self.solve_linear('P')
         return change
+    
+    def __add__(self, other):
+        self.C.append(other)
+        return self
 
 class Parallel(Circuit):
     def _solve(self):
@@ -215,6 +218,10 @@ class Parallel(Circuit):
         change |= self.solve_linear('P')
         change |= self.solve_linear('Z', inverse)
         return change
+
+    def __truediv__(self, other):
+        self.C.append(other)
+        return self
 
 l = Load
 s = Source
