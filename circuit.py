@@ -1,3 +1,4 @@
+from collections import defaultdict
 from math import log10, floor
 
 
@@ -21,7 +22,7 @@ MAG = {
 UNITS = {
     'E': 'V',
     'I': 'A',
-    'R': 'Ω',
+    'Z': 'Ω',
     'P': 'W',
 }
 
@@ -62,12 +63,14 @@ def reset():
 reset()
 
 class Component:
-    def __init__(self, *, E=None, I=None, R=None, P=None, **kwargs):
+    laws = defaultdict(list)
+
+    def __init__(self, *, E=None, I=None, Z=None, P=None, **kwargs):
         global counter
         p = self.__class__.__name__[0]
         self.name = p + str(counter[p])
         counter[p] += 1
-        self.E, self.I, self.R, self.P = E, I, R, P
+        self.E, self.I, self.Z, self.P = E, I, Z, P
         for n, v in kwargs.items():
             self[n.upper()] = v
     
@@ -76,36 +79,50 @@ class Component:
     
     def __setitem__(self, prop, value):
         setattr(self, prop, value)
+
+    @classmethod
+    def law(cls, D, **paths):
+        for K, P in paths.items():
+            cls.laws[K].append((P, D))
     
+    @property
+    def unknowns(self):
+        return (p for p in 'EIZP' if self[p] is None)
+    
+    def have(self, D):
+        P = {k: self[k] for k in D if self[k] is not None}
+        return P if len(P) == len(D) else None
+
     def solve(self):
-        E, I, R, P = self.E, self.I, self.R, self.P
-        if count(E, I, R, P) not in (2, 3):
-            return False
-        elif not given(P):
-            if not given(R): R = E / I
-            if not given(I): I = E / R
-            if not given(E): E = I * R
-            P = E * I
-        elif not given(R):
-            if not given(I): I = P / E
-            if not given(E): E = P / I
-            R = E / I
-        else:
-            if not given(E): E = (P * R) ** (1 / 2)
-            if not given(I): I = E / R
-        self.E, self.I, self.R, self.P = E, I, R, P
-        return True
+        change = False
+        for K in self.unknowns:
+            for law, D in self.laws[K]:
+                P = self.have(D)
+                if P:
+                    self[K] = law(**P)
+                    change = True
+                    break
+        if change and self.unknowns:
+            self.solve()
+        return change
     
     def __call__(self):
         self.solve()
         return self
     
     def __str__(self, indent=''):
-        parts = [p + '=' + norm(p, self[p]) for p in 'EIRP']
+        parts = [p + '=' + norm(p, self[p]) for p in 'EIZP']
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
     def __repr__(self):
         return str(self)
+
+Component.law('EI', Z=lambda E, I: E / I)
+Component.law('EZ', I=lambda E, Z: E / Z)
+Component.law('IZ', E=lambda I, Z: I * Z)
+Component.law('EI', P=lambda E, I: E * I)
+Component.law('PE', I=lambda P, E: P / E)
+Component.law('PI', E=lambda P, I: P / I)
 
 class Load(Component):
     pass
@@ -188,7 +205,7 @@ class Series(Circuit):
     def _solve(self):
         change = super()._solve()
         change |= self.solve_constant('I')
-        change |= self.solve_linear('R')
+        change |= self.solve_linear('Z')
         change |= self.solve_linear('E')
         change |= self.solve_linear('P')
         return change
@@ -199,7 +216,7 @@ class Parallel(Circuit):
         change |= self.solve_constant('E')
         change |= self.solve_linear('I')
         change |= self.solve_linear('P')
-        change |= self.solve_linear('R', inverse)
+        change |= self.solve_linear('Z', inverse)
         return change
 
 l = Load
