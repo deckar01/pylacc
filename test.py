@@ -11,6 +11,13 @@ class TestComponent:
         c = Component()
         assert repr(c) == 'Component1( E=?, I=?, Z=?, P=? )'
 
+    @pytest.mark.parametrize('K,law,D', [(K, law, D) for K in Component.props for law, D in Component.laws[K]])
+    def test_laws(self, K, law, D):
+        c = Component(**C1)
+        assert repr(c) == 'Component1( E=12V, I=4A, Z=3Ω, P=48W )'
+        if c.have(D):
+            assert c[K] == law(**c.have(D))
+
     @pytest.mark.parametrize('T', combinations(C1.items(), 2))
     def test_solve(self, T):
         c = Component(**dict(T))
@@ -53,3 +60,18 @@ class TestShorthand:
         assert Component.counter['Parallel'] == 1
         assert Component.counter['Load'] == 4
         assert repr(c).startswith('Series1( E=12V, I=2A, Z=6Ω, P=24W )')
+
+class TestAlernatingCurrent:
+    def test_capacitor(self):
+        c = s(e=120, f=60) + l(r=24.1e3) + l(c=110e-9)
+        assert repr(c).startswith('Series1( E=120V, I=3.52mA∠45°, Z=34.1kΩ∠-45°, P=422mW∠45°, F=60Hz )')
+
+    def test_inductor(self):
+        c = s(e=120, f=60) + l(r=829e-3) + l(l=2.2e-3)
+        assert repr(c).startswith('Series1( E=120V, I=102A∠-45°, Z=1.17Ω∠45°, P=12.3kW∠-45°, F=60Hz )')
+
+    def test_reverse_impedence(self):
+        c = s(e=120, f=60) + l(z=1) + l(z=1j) + l(z=-1j)
+        assert repr(c).startswith('Series1( E=120V, I=120A, Z=1Ω, P=14.4kW, F=60Hz )')
+        assert 'Load2( E=120V∠90°, I=120A, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=120A, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)

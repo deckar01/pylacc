@@ -1,5 +1,8 @@
+# ruff: noqa: E741, E701
+
+from cmath import polar
 from collections import defaultdict
-from math import log10, floor
+from math import log10, floor, pi
 
 
 k = 1e3
@@ -14,9 +17,11 @@ MAG = {
     1: 'k',
     2: 'M',
     3: 'G',
+    4: 'T',
     -1: 'm',
     -2: 'u',
     -3: 'n',
+    -4: 'p',
 }
 
 UNITS = {
@@ -24,18 +29,25 @@ UNITS = {
     'I': 'A',
     'Z': 'Ω',
     'P': 'W',
+    'F': 'Hz',
+    'C': 'F',
+    'L': 'H',
 }
 
 def norm(t, v):
     if v is None:
         return '?'
-    mag10 = floor(log10(v))
+    phase = ''
+    if v.imag:
+        v, a = polar(v)
+        phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
+    mag10 = floor(log10(abs(v.real)))
     mag1k = floor(mag10 / 3)
     v /= 10 ** mag10
-    v = round(v, 2)
+    v = round(v.real, 2)
     v *= 10 ** mag10
     v /= 1000 ** mag1k
-    return '{:.3g}{}{}'.format(v, MAG[mag1k], UNITS[t])
+    return '{:.3g}{}{}{}'.format(v, MAG[mag1k], UNITS[t], phase)
 
 def count(*V):
     T = 0
@@ -56,18 +68,19 @@ def inverse(v):
     return 1 / v
 
 class Component:
+    show = 'EIZP'
+    optional = ''
     laws = defaultdict(list)
     counter = defaultdict(lambda: 0)
+    props = set()
 
-    def __init__(self, *, E=None, I=None, Z=None, P=None, **kwargs):
-        p = self.__class__.__name__
-        Component.counter[p] += 1
-        self.name = p + str(Component.counter[p])
-        self.E, self.I, self.Z, self.P = E, I, Z, P
+    def __init__(self, **kwargs):
+        name = self.__class__.__name__
+        Component.counter[name] += 1
+        self.name = name + str(Component.counter[name])
         for n, v in kwargs.items():
             n = n.upper()
-            if n == 'R':
-                n = 'Z'
+            if n == 'R': n = 'Z'
             self[n] = v
     
     def __add__(self, other):
@@ -85,11 +98,13 @@ class Component:
     @classmethod
     def law(cls, D, **paths):
         for K, P in paths.items():
+            cls.props.add(K)
+            setattr(cls, K, None)
             cls.laws[K].append((P, D))
     
     @property
     def unknowns(self):
-        return (p for p in 'EIZP' if self[p] is None)
+        return (p for p in self.props if self[p] is None)
     
     def have(self, D):
         P = {k: self[k] for k in D if self[k] is not None}
@@ -100,8 +115,10 @@ class Component:
         for K in self.unknowns:
             for law, D in self.laws[K]:
                 P = self.have(D)
-                if P:
-                    self[K] = law(**P)
+                if not P:
+                    continue
+                self[K] = law(**P)
+                if self[K] is not None:
                     change = True
                     break
         if change and self.unknowns:
@@ -109,7 +126,8 @@ class Component:
         return change
     
     def __str__(self, indent=''):
-        parts = [p + '=' + norm(p, self[p]) for p in 'EIZP']
+        parts = [p + '=' + norm(p, self[p]) for p in self.show]
+        parts += [p + '=' + norm(p, self[p]) for p in self.optional if self[p] is not None]
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
     def __repr__(self):
@@ -119,33 +137,40 @@ class Component:
 
 Component.law('EI', Z=lambda E, I: E / I, P=lambda E, I: E * I)
 Component.law('EZ', I=lambda E, Z: E / Z, P=lambda E, Z: E * E / Z)
-Component.law('IZ', E=lambda I, Z: I * Z, P=lambda I, Z: I * I / Z)
+Component.law('IZ', E=lambda I, Z: I * Z, P=lambda I, Z: I * I * Z)
 Component.law('PE', I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
 Component.law('PI', E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
-Component.law('PZ', I=lambda P, Z: (P / Z) ** 0.5, Z=lambda P, Z: (P * Z) ** 0.5)
+Component.law('PZ', I=lambda P, Z: (P / Z) ** 0.5, E=lambda P, Z: (P * Z) ** 0.5)
+
+Component.law('CF', Z=lambda C, F: -1j / 2 / pi / F / C)
+Component.law('LF', Z=lambda L, F: +1j * 2 * pi * F * L)
+Component.law('ZF', C=lambda Z, F: -1 / 2 / pi / F / Z.imag if Z.imag < 0 else None)
+Component.law('ZF', L=lambda Z, F: +1 * 2 * pi * F * Z.imag if Z.imag > 0 else None)
 
 class Load(Component):
-    pass
+    optional = 'LCF'
 
 class Source(Component):
-    pass
+    optional = 'F'
 
 class Circuit(Component):
+    optional = 'F'
+
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
-        self.C = list(args)
+        self.nodes = list(args)
 
-    def __call__(self, *C):
-        self.C.extend(C)
+    def __call__(self, *nodes):
+        self.nodes.extend(nodes)
         return self
 
     @property
     def loads(self):
-        return [L for L in self.C if not isinstance(L, Source)]
+        return [L for L in self.nodes if not isinstance(L, Source)]
 
     @property
     def sources(self):
-        return [S for S in self.C if isinstance(S, Source)]
+        return [S for S in self.nodes if isinstance(S, Source)]
     
     def solve_constant(self, prop, G):
         change = False
@@ -183,7 +208,7 @@ class Circuit(Component):
 
     def _solve(self):
         change = super().solve()
-        for c in self.C:
+        for c in self.nodes:
             change |= c.solve()
         return change
     
@@ -191,7 +216,7 @@ class Circuit(Component):
         indent += '  '
         return super().__str__(indent) + ''.join(
             '\n' + indent + c.__str__(indent)
-            for c in self.C
+            for c in self.nodes
         )
 
 class Series(Circuit):
@@ -201,26 +226,28 @@ class Series(Circuit):
         change |= self.solve_constant('E', self.sources)
         change |= self.solve_constant('I', self.sources)
         change |= self.solve_constant('I', self.loads)
+        change |= self.solve_constant('F', self.nodes)
         change |= self.solve_linear('Z')
         change |= self.solve_linear('E')
         change |= self.solve_linear('P')
         return change
     
     def __add__(self, other):
-        self.C.append(other)
+        self.nodes.append(other)
         return self
 
 class Parallel(Circuit):
     def _solve(self):
         change = super()._solve()
-        change |= self.solve_constant('E', self.C)
+        change |= self.solve_constant('E', self.nodes)
+        change |= self.solve_constant('F', self.nodes)
         change |= self.solve_linear('I')
         change |= self.solve_linear('P')
         change |= self.solve_linear('Z', inverse)
         return change
 
     def __truediv__(self, other):
-        self.C.append(other)
+        self.nodes.append(other)
         return self
 
 l = Load
