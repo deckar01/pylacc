@@ -34,11 +34,13 @@ UNITS = {
     'L': 'H',
 }
 
-def norm(t, v):
+PHASED = 'EIZP'
+
+def norm(t, v, f):
     if v is None:
-        return '?'
+        return t + '=?'
     phase = ''
-    if v.imag:
+    if t in PHASED and f is not None:
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
     mag10 = floor(log10(abs(v.real)))
@@ -47,7 +49,7 @@ def norm(t, v):
     v = round(v.real, 2)
     v *= 10 ** mag10
     v /= 1000 ** mag1k
-    return '{:.3g}{}{}{}'.format(v, MAG[mag1k], UNITS[t], phase)
+    return '{}={:.3g}{}{}{}'.format(t, v, MAG[mag1k], UNITS[t], phase)
 
 def count(*V):
     T = 0
@@ -126,8 +128,8 @@ class Component:
         return change
     
     def __str__(self, indent=''):
-        parts = [p + '=' + norm(p, self[p]) for p in self.show]
-        parts += [p + '=' + norm(p, self[p]) for p in self.optional if self[p] is not None]
+        K = list(self.show) + [p for p in self.optional if self[p] is not None]
+        parts = [norm(p, self[p], self['F']) for p in K]
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
     def __repr__(self):

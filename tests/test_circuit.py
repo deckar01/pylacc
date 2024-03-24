@@ -1,7 +1,7 @@
 from itertools import combinations, permutations
 import pytest
 
-from circuit import Series, Parallel, Load, Source, Component, s, l
+from src.lilacs.circuit import Series, Parallel, Load, Source, Component, s, l
 
 
 C1 = {'E': 12, 'I': 4, 'Z': 3, 'P': 48}
@@ -64,14 +64,14 @@ class TestShorthand:
 class TestAlernatingCurrent:
     def test_capacitor(self):
         c = s(e=120, f=60) + l(r=24.1e3) + l(c=110e-9)
-        assert repr(c).startswith('Series1( E=120V, I=3.52mA∠45°, Z=34.1kΩ∠-45°, P=422mW∠45°, F=60Hz )')
+        assert repr(c).startswith('Series1( E=120V∠0°, I=3.52mA∠45°, Z=34.1kΩ∠-45°, P=422mW∠45°, F=60Hz )')
 
     def test_inductor(self):
         c = s(e=120, f=60) + l(r=829e-3) + l(l=2.2e-3)
-        assert repr(c).startswith('Series1( E=120V, I=102A∠-45°, Z=1.17Ω∠45°, P=12.3kW∠-45°, F=60Hz )')
+        assert repr(c).startswith('Series1( E=120V∠0°, I=102A∠-45°, Z=1.17Ω∠45°, P=12.3kW∠-45°, F=60Hz )')
 
     def test_reverse_impedence(self):
         c = s(e=120, f=60) + l(z=1) + l(z=1j) + l(z=-1j)
-        assert repr(c).startswith('Series1( E=120V, I=120A, Z=1Ω, P=14.4kW, F=60Hz )')
-        assert 'Load2( E=120V∠90°, I=120A, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
-        assert 'Load3( E=120V∠-90°, I=120A, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)
+        assert repr(c).startswith('Series1( E=120V∠0°, I=120A∠0°, Z=1Ω∠0°, P=14.4kW∠0°, F=60Hz )')
+        assert 'Load2( E=120V∠90°, I=120A∠0°, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=120A∠0°, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)
