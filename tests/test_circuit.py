@@ -62,6 +62,12 @@ class TestShorthand:
         assert repr(c).startswith('Series1( E=12V, I=2A, Z=6Ω, P=24W )')
 
 class TestAlernatingCurrent:
+    @pytest.mark.parametrize('Z', [-100j, 100j])
+    def test_no_frequency(self, Z):
+        c = s(e=120) + l(r=24.1e3) + l(z=Z)
+        with pytest.raises(ValueError, match='Reactive loads require an AC frequency'):
+            repr(c)
+
     def test_capacitor(self):
         c = s(e=120, f=60) + l(r=24.1e3) + l(c=110e-9)
         assert repr(c).startswith('Series1( E=120V∠0°, I=3.52mA∠45°, Z=34.1kΩ∠-45°, P=422mW∠45°, F=60Hz )')

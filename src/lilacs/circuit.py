@@ -38,7 +38,8 @@ PHASED = 'EIZP'
 def norm(t, v, f):
     if v is None:
         return t + '=?'
-    phase = ''
+    if f is None and v.imag:
+        raise ValueError('Reactive loads require an AC frequency')
     if t in PHASED and f is not None:
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
