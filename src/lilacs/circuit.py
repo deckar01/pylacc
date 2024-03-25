@@ -162,12 +162,12 @@ Component.law(('P', 'E'), I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
 Component.law(('P', 'I'), E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
 Component.law(('P', 'Z'), I=lambda P, Z: (P / Z) ** 0.5, E=lambda P, Z: (P * Z) ** 0.5)
 
-Component.law(('C', 'F'), Z=lambda C, F: -1j / 2 / pi / F / C)
-Component.law(('L', 'F'), Z=lambda L, F: +1j * 2 * pi * F * L)
-Component.law(('Z', 'F'), C=lambda Z, F: -1 / 2 / pi / F / Z.imag if Z.imag < 0 else None)
-Component.law(('Z', 'F'), L=lambda Z, F: Z.imag / 2 / pi / F if Z.imag > 0 else None)
-Component.law(('Z', 'C'), F=lambda Z, C: -1 / 2 / pi / C / Z.imag)
-Component.law(('Z', 'L'), F=lambda Z, L: Z.imag / 2 / pi / L)
+Component.law(('C', 'F'), Z=lambda C, F: -1j / (2 * pi * F * C))
+Component.law(('L', 'F'), Z=lambda L, F: 1j * 2 * pi * F * L)
+Component.law(('Z', 'F'), C=lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 else None)
+Component.law(('Z', 'F'), L=lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 else None)
+Component.law(('Z', 'C'), F=lambda Z, C: -1 / (2 * pi * C * Z.imag))
+Component.law(('Z', 'L'), F=lambda Z, L: Z.imag / (2 * pi * L))
 
 class Load(Component):
     optional = ('L', 'C')

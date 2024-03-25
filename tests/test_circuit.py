@@ -81,18 +81,18 @@ class TestAlernatingCurrent:
         c.verify()
 
     def test_reverse_impedence(self):
-        c = s(e=120, f=60) + l(z=1) + l(z=1j) + l(z=-1j)
-        assert repr(c).startswith('Series1( E=120V∠0°, I=120A∠0°, P=14.4kW∠0° )')
-        assert 'Load2( E=120V∠90°, I=120A∠0°, Z=1Ω∠90°, P=14.4kW∠90°, L=2.65mH )' in repr(c)
-        assert 'Load3( E=120V∠-90°, I=120A∠0°, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF )' in repr(c)
+        c = s(e=120, f=60) + l(z=2) + l(z=2j) + l(z=-2j)
+        assert 'Series1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0° )' in repr(c)
+        assert 'Load2( E=120V∠90°, I=60A∠0°, Z=2Ω∠90°, P=7.2kW∠90°, L=5.31mH )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=60A∠0°, Z=2Ω∠-90°, P=7.2kW∠-90°, C=1.33mF )' in repr(c)
         c.verify()
 
     def test_reverse_cap_frequency(self):
-        c = s(e=120) + l(z=1) + l(z=1j) + l(z=-1j, c=2.654e-3)
-        assert 'Source1( E=120V∠0°, I=120A∠0°, P=14.4kW∠0°, F=60Hz )' in repr(c)
+        c = s(e=120) + l(z=2) + l(z=2j) + l(z=-2j, c=2.654e-3)
+        assert 'Source1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0°, F=30Hz )' in repr(c)
         c.verify()
 
     def test_reverse_ind_frequency(self):
-        c = s(e=120) + l(z=1) + l(z=1j, l=2.654e-3) + l(z=-1j)
-        assert 'Source1( E=120V∠0°, I=120A∠0°, P=14.4kW∠0°, F=60Hz )' in repr(c)
+        c = s(e=120) + l(z=2) + l(z=2j, l=2.654e-3) + l(z=-2j)
+        assert 'Source1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0°, F=120Hz )' in repr(c)
         c.verify()
