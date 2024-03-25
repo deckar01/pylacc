@@ -1,6 +1,6 @@
 # ruff: noqa: E741, E701
 
-from cmath import polar
+from cmath import polar, isclose
 from math import log10, floor, pi
 
 
@@ -73,8 +73,8 @@ def inverse(v):
     return 1 / v
 
 class Component:
-    show = 'EIZP'
-    optional = ''
+    show = ('E', 'I', 'Z', 'P')
+    optional = ()
     laws = {}
     counter = {}
     props = set()
@@ -85,9 +85,11 @@ class Component:
             Component.counter[name] = 0
         Component.counter[name] += 1
         self.name = name + str(Component.counter[name])
+        self.given = []
         for n, v in kwargs.items():
             n = n.upper()
             if n == 'R': n = 'Z'
+            self.given.append(n)
             # HACK: Python 3.4 requires int to complex promotion
             self[n] = complex(v)
     
@@ -134,9 +136,17 @@ class Component:
         if change and self.unknowns:
             self.solve()
         return change
-    
+
+    def verify(self):
+        for K in self.given:
+            for law, D in self.laws[K]:
+                P = self.have(D)
+                if not P:
+                    continue
+                assert isclose(self[K], law(**P)), f'{D} -> {K}: {self[K]} != {law(**P)}'
+
     def __str__(self, indent=''):
-        K = list(self.show) + [p for p in self.optional if self[p] is not None]
+        K = self.show + tuple(p for p in self.optional if self[p] is not None)
         parts = [norm(p, self[p], self['F']) for p in K]
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
@@ -145,28 +155,29 @@ class Component:
         Component.counter.clear()
         return str(self)
 
-Component.law('EI', Z=lambda E, I: E / I, P=lambda E, I: E * I)
-Component.law('EZ', I=lambda E, Z: E / Z, P=lambda E, Z: E * E / Z)
-Component.law('IZ', E=lambda I, Z: I * Z, P=lambda I, Z: I * I * Z)
-Component.law('PE', I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
-Component.law('PI', E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
-Component.law('PZ', I=lambda P, Z: (P / Z) ** 0.5, E=lambda P, Z: (P * Z) ** 0.5)
+Component.law(('E', 'I'), Z=lambda E, I: E / I, P=lambda E, I: E * I)
+Component.law(('E', 'Z'), I=lambda E, Z: E / Z, P=lambda E, Z: E * E / Z)
+Component.law(('I', 'Z'), E=lambda I, Z: I * Z, P=lambda I, Z: I * I * Z)
+Component.law(('P', 'E'), I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
+Component.law(('P', 'I'), E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
+Component.law(('P', 'Z'), I=lambda P, Z: (P / Z) ** 0.5, E=lambda P, Z: (P * Z) ** 0.5)
 
-Component.law('CF', Z=lambda C, F: -1j / 2 / pi / F / C)
-Component.law('LF', Z=lambda L, F: +1j * 2 * pi * F * L)
-Component.law('ZF', C=lambda Z, F: -1 / 2 / pi / F / Z.imag if Z.imag < 0 else None)
-Component.law('ZF', L=lambda Z, F: +1 * 2 * pi * F * Z.imag if Z.imag > 0 else None)
-Component.law('ZC', F=lambda Z, C: -1 / 2 / pi / C / Z.imag)
-Component.law('ZL', F=lambda Z, L: L / Z.imag / 2 / pi)
+Component.law(('C', 'F'), Z=lambda C, F: -1j / 2 / pi / F / C)
+Component.law(('L', 'F'), Z=lambda L, F: +1j * 2 * pi * F * L)
+Component.law(('Z', 'F'), C=lambda Z, F: -1 / 2 / pi / F / Z.imag if Z.imag < 0 else None)
+Component.law(('Z', 'F'), L=lambda Z, F: Z.imag / 2 / pi / F if Z.imag > 0 else None)
+Component.law(('Z', 'C'), F=lambda Z, C: -1 / 2 / pi / C / Z.imag)
+Component.law(('Z', 'L'), F=lambda Z, L: Z.imag / 2 / pi / L)
 
 class Load(Component):
-    optional = 'LC'
+    optional = ('L', 'C')
 
 class Source(Component):
-    show = 'EIP'
+    show = ('E', 'I', 'P')
+    optional = ('F',)
 
 class Circuit(Component):
-    show = 'EIP'
+    show = ('E', 'I', 'P')
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
@@ -223,6 +234,11 @@ class Circuit(Component):
         for c in self.nodes:
             change |= c.solve()
         return change
+
+    def verify(self):
+        super().verify()
+        for c in self.nodes:
+            c.verify()
     
     def __str__(self, indent=''):
         indent += '  '
