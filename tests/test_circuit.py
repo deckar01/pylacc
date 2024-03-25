@@ -1,7 +1,7 @@
 from itertools import combinations, permutations
 import pytest
 
-from src.lilacs.circuit import Series, Parallel, Load, Source, Component, s, l
+from lilacs.circuit import Series, Parallel, Load, Source, Component, s, l
 
 
 C1 = {'E': 12, 'I': 4, 'Z': 3, 'P': 48}
