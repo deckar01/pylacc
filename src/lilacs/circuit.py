@@ -42,10 +42,13 @@ def norm(t, v, f):
     if t in PHASED and f is not None:
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
-    mag10 = floor(log10(abs(v.real)))
+    else:
+        v = v.real
+        phase = ''
+    mag10 = floor(log10(abs(v)))
     mag1k = floor(mag10 / 3)
     v /= 10 ** mag10
-    v = round(v.real, 2)
+    v = round(v, 2)
     v *= 10 ** mag10
     v /= 1000 ** mag1k
     return '{}={:.3g}{}{}{}'.format(t, v, MAG[mag1k], UNITS[t], phase)
@@ -84,7 +87,8 @@ class Component:
         for n, v in kwargs.items():
             n = n.upper()
             if n == 'R': n = 'Z'
-            self[n] = v
+            # HACK: Python 3.4 requires int to complex promotion
+            self[n] = complex(v)
     
     def __add__(self, other):
         return Series(self, other)
