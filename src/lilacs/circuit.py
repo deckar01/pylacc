@@ -160,13 +160,13 @@ Component.law('ZC', F=lambda Z, C: -1 / 2 / pi / C / Z.imag)
 Component.law('ZL', F=lambda Z, L: L / Z.imag / 2 / pi)
 
 class Load(Component):
-    optional = 'LCF'
+    optional = 'LC'
 
 class Source(Component):
-    optional = 'F'
+    show = 'EIP'
 
 class Circuit(Component):
-    optional = 'F'
+    show = 'EIP'
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
