@@ -156,6 +156,8 @@ Component.law('CF', Z=lambda C, F: -1j / 2 / pi / F / C)
 Component.law('LF', Z=lambda L, F: +1j * 2 * pi * F * L)
 Component.law('ZF', C=lambda Z, F: -1 / 2 / pi / F / Z.imag if Z.imag < 0 else None)
 Component.law('ZF', L=lambda Z, F: +1 * 2 * pi * F * Z.imag if Z.imag > 0 else None)
+Component.law('ZC', F=lambda Z, C: -1 / 2 / pi / C / Z.imag)
+Component.law('ZL', F=lambda Z, L: L / Z.imag / 2 / pi)
 
 class Load(Component):
     optional = 'LCF'

@@ -81,3 +81,16 @@ class TestAlernatingCurrent:
         assert repr(c).startswith('Series1( E=120V∠0°, I=120A∠0°, Z=1Ω∠0°, P=14.4kW∠0°, F=60Hz )')
         assert 'Load2( E=120V∠90°, I=120A∠0°, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
         assert 'Load3( E=120V∠-90°, I=120A∠0°, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)
+
+    def test_reverse_cap_frequency(self):
+        c = s(e=120) + l(z=1) + l(z=1j) + l(z=-1j, c=2.654e-3)
+        assert repr(c).startswith('Series1( E=120V∠0°, I=120A∠0°, Z=1Ω∠0°, P=14.4kW∠0°, F=60Hz )')
+        assert 'Load2( E=120V∠90°, I=120A∠0°, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=120A∠0°, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)
+
+    def test_reverse_ind_frequency(self):
+        c = s(e=120) + l(z=1) + l(z=1j, l=377) + l(z=-1j)
+        print(repr(c))
+        assert repr(c).startswith('Series1( E=120V∠0°, I=120A∠0°, Z=1Ω∠0°, P=14.4kW∠0°, F=60Hz )')
+        assert 'Load2( E=120V∠90°, I=120A∠0°, Z=1Ω∠90°, P=14.4kW∠90°, L=377H, F=60Hz )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=120A∠0°, Z=1Ω∠-90°, P=14.4kW∠-90°, C=2.65mF, F=60Hz )' in repr(c)
