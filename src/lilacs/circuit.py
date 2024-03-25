@@ -1,7 +1,6 @@
 # ruff: noqa: E741, E701
 
 from cmath import polar
-from collections import defaultdict
 from math import log10, floor, pi
 
 
@@ -72,12 +71,14 @@ def inverse(v):
 class Component:
     show = 'EIZP'
     optional = ''
-    laws = defaultdict(list)
-    counter = defaultdict(lambda: 0)
+    laws = {}
+    counter = {}
     props = set()
 
     def __init__(self, **kwargs):
         name = self.__class__.__name__
+        if name not in Component.counter:
+            Component.counter[name] = 0
         Component.counter[name] += 1
         self.name = name + str(Component.counter[name])
         for n, v in kwargs.items():
@@ -102,6 +103,8 @@ class Component:
         for K, P in paths.items():
             cls.props.add(K)
             setattr(cls, K, None)
+            if K not in cls.laws:
+                cls.laws[K] = []
             cls.laws[K].append((P, D))
     
     @property
