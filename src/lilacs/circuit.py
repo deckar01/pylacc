@@ -106,13 +106,15 @@ class Component:
         setattr(self, prop, value)
 
     @classmethod
-    def law(cls, D, **paths):
-        for K, P in paths.items():
-            cls.props.add(K)
-            setattr(cls, K, None)
-            if K not in cls.laws:
-                cls.laws[K] = []
-            cls.laws[K].append((P, D))
+    def law(cls, **paths):
+        def _law(fn):
+            for K, D in paths.items():
+                cls.props.add(K)
+                setattr(cls, K, None)
+                if K not in cls.laws:
+                    cls.laws[K] = []
+                cls.laws[K].append((D, fn))
+        return _law
     
     @property
     def unknowns(self):
@@ -125,7 +127,7 @@ class Component:
     def solve(self):
         change = False
         for K in self.unknowns:
-            for law, D in self.laws[K]:
+            for D, law in self.laws[K]:
                 P = self.have(D)
                 if not P:
                     continue
@@ -139,11 +141,12 @@ class Component:
 
     def verify(self):
         for K in self.given:
-            for law, D in self.laws[K]:
+            for D, law in self.laws[K]:
                 P = self.have(D)
                 if not P:
                     continue
-                assert isclose(self[K], law(**P)), f'{D} -> {K}: {self[K]} != {law(**P)}'
+                V = law(**P)
+                assert isclose(self[K], V), f'{D} -> {K}: {self[K]} != {V}'
 
     def __str__(self, indent=''):
         K = self.show + tuple(p for p in self.optional if self[p] is not None)
@@ -155,19 +158,25 @@ class Component:
         Component.counter.clear()
         return str(self)
 
-Component.law(('E', 'I'), Z=lambda E, I: E / I, P=lambda E, I: E * I)
-Component.law(('E', 'Z'), I=lambda E, Z: E / Z, P=lambda E, Z: E * E / Z)
-Component.law(('I', 'Z'), E=lambda I, Z: I * Z, P=lambda I, Z: I * I * Z)
-Component.law(('P', 'E'), I=lambda P, E: P / E, Z=lambda P, E: E * E / P)
-Component.law(('P', 'I'), E=lambda P, I: P / I, Z=lambda P, I: P / I / I)
-Component.law(('P', 'Z'), I=lambda P, Z: (P / Z) ** 0.5, E=lambda P, Z: (P * Z) ** 0.5)
+Component.law(Z=('E', 'I'))(lambda E, I: E / I)
+Component.law(Z=('P', 'E'))(lambda P, E: E * E / P)
+Component.law(Z=('P', 'I'))(lambda P, I: P / (I * I))
+Component.law(P=('E', 'I'))(lambda E, I: E * I)
+Component.law(P=('E', 'Z'))(lambda E, Z: E * E / Z)
+Component.law(P=('I', 'Z'))(lambda I, Z: I * I * Z)
+Component.law(E=('I', 'Z'))(lambda I, Z: I * Z)
+Component.law(E=('P', 'I'))(lambda P, I: P / I)
+Component.law(E=('P', 'Z'))(lambda P, Z: (P * Z) ** 0.5)
+Component.law(I=('E', 'Z'))(lambda E, Z: E / Z)
+Component.law(I=('P', 'E'))(lambda P, E: P / E)
+Component.law(I=('P', 'Z'))(lambda P, Z: (P / Z) ** 0.5)
 
-Component.law(('C', 'F'), Z=lambda C, F: -1j / (2 * pi * F * C))
-Component.law(('L', 'F'), Z=lambda L, F: 1j * 2 * pi * F * L)
-Component.law(('Z', 'F'), C=lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 else None)
-Component.law(('Z', 'F'), L=lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 else None)
-Component.law(('Z', 'C'), F=lambda Z, C: -1 / (2 * pi * C * Z.imag))
-Component.law(('Z', 'L'), F=lambda Z, L: Z.imag / (2 * pi * L))
+Component.law(Z=('C', 'F'))(lambda C, F: -1j / (2 * pi * F * C))
+Component.law(Z=('L', 'F'))(lambda L, F: 1j * 2 * pi * F * L)
+Component.law(C=('Z', 'F'))(lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 else None)
+Component.law(L=('Z', 'F'))(lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 else None)
+Component.law(F=('Z', 'C'))(lambda Z, C: -1 / (2 * pi * C * Z.imag))
+Component.law(F=('Z', 'L'))(lambda Z, L: Z.imag / (2 * pi * L))
 
 class Load(Component):
     optional = ('L', 'C')
