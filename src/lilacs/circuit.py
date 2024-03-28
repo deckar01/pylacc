@@ -1,6 +1,6 @@
 # ruff: noqa: E741, E701
 
-from cmath import polar, isclose
+from cmath import polar, sqrt, isclose
 from math import log10, floor, pi
 
 
@@ -65,12 +65,6 @@ def given(*V):
 
 def all(prop, G):
     return [c[prop] for c in G]
-
-def identity(v):
-    return v
-
-def inverse(v):
-    return 1 / v
 
 class Component:
     show = ('E', 'I', 'Z', 'P')
@@ -140,13 +134,19 @@ class Component:
         return change
 
     def verify(self):
-        for K in self.given:
+        errors = []
+        for K in self.props:
+            if not given(self[K]):
+                continue
             for D, law in self.laws[K]:
                 P = self.have(D)
                 if not P:
                     continue
                 V = law(**P)
-                assert isclose(self[K], V), f'{D} -> {K}: {self[K]} != {V}'
+                if not isclose(self[K], V):
+                    errors.append(f'{D} -> {K}: {self[K]} != {V}')
+        if errors:
+            raise AssertionError('\n'.join(errors))
 
     def __str__(self, indent=''):
         K = self.show + tuple(p for p in self.optional if self[p] is not None)
@@ -166,17 +166,20 @@ Component.law(P=('E', 'Z'))(lambda E, Z: E * E / Z)
 Component.law(P=('I', 'Z'))(lambda I, Z: I * I * Z)
 Component.law(E=('I', 'Z'))(lambda I, Z: I * Z)
 Component.law(E=('P', 'I'))(lambda P, I: P / I)
-Component.law(E=('P', 'Z'))(lambda P, Z: (P * Z) ** 0.5)
+# Component.law(E=('P', 'Z'))(lambda P, Z: sqrt(P * Z)) # TODO: Reactive signs are lost in sqrt
 Component.law(I=('E', 'Z'))(lambda E, Z: E / Z)
 Component.law(I=('P', 'E'))(lambda P, E: P / E)
-Component.law(I=('P', 'Z'))(lambda P, Z: (P / Z) ** 0.5)
+Component.law(I=('P', 'Z'))(lambda P, Z: sqrt(P / Z))
 
 Component.law(Z=('C', 'F'))(lambda C, F: -1j / (2 * pi * F * C))
 Component.law(Z=('L', 'F'))(lambda L, F: 1j * 2 * pi * F * L)
-Component.law(C=('Z', 'F'))(lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 else None)
-Component.law(L=('Z', 'F'))(lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 else None)
+Component.law(C=('Z', 'F'))(lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 and isclose(Z.real, 0) else None)
+Component.law(L=('Z', 'F'))(lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 and isclose(Z.real, 0) else None)
 Component.law(F=('Z', 'C'))(lambda Z, C: -1 / (2 * pi * C * Z.imag))
 Component.law(F=('Z', 'L'))(lambda Z, L: Z.imag / (2 * pi * L))
+
+Component.law(Y=('Z',))(lambda Z: 1 / Z)
+Component.law(Z=('Y',))(lambda Y: 1 / Y)
 
 class Load(Component):
     optional = ('L', 'C')
@@ -220,15 +223,15 @@ class Circuit(Component):
                 change = True
         return change
     
-    def solve_linear(self, prop, T=identity):
+    def solve_linear(self, prop):
         change = False
         if not given(self[prop]) and given(*all(prop, self.loads)):
-            self[prop] = T(sum([T(value) for value in all(prop, self.loads)]))
+            self[prop] = sum([value for value in all(prop, self.loads)])
             change = True
         if given(self[prop]) and count(*all(prop, self.loads)) == len(self.loads) - 1:
             c, = (c for c in self.loads if not given(c[prop]))
-            s = sum([T(value) for value in all(prop, self.loads) if value])
-            c[prop] = T(T(self[prop]) - s)
+            s = sum([value for value in all(prop, self.loads) if value])
+            c[prop] = self[prop] - s
             change = True
         return change
 
@@ -280,7 +283,7 @@ class Parallel(Circuit):
         change |= self.solve_constant('F', self.nodes)
         change |= self.solve_linear('I')
         change |= self.solve_linear('P')
-        change |= self.solve_linear('Z', inverse)
+        change |= self.solve_linear('Y')
         return change
 
     def __truediv__(self, other):
