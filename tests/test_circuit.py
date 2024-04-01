@@ -68,6 +68,11 @@ class TestShorthand:
         assert repr(c).startswith('Series1( E=12V, I=2A, P=24W )')
         c.verify()
 
+    def test_phasor(self):
+        c = l(e=(12, 45))
+        assert repr(c) == 'Load1( E=12V∠45°, I=?, Z=?, P=? )'
+        c.verify()
+
 C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'P': 2400-2400j}
 
 class TestAlernatingCurrent:

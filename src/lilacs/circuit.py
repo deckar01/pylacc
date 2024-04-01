@@ -1,6 +1,6 @@
 # ruff: noqa: E741, E701
 
-from cmath import polar, sqrt, isclose
+from cmath import polar, sqrt, rect
 from math import log10, floor, pi
 
 
@@ -34,6 +34,9 @@ UNITS = {
 }
 
 PHASED = ('E', 'I', 'Z', 'P')
+
+def isclose(a, b):
+    return abs(a - b) < 1e-9
 
 def norm(t, v, AC):
     if v is None:
@@ -82,8 +85,12 @@ class Component:
             n = n.upper()
             if n == 'R': n = 'Z'
             self.given.append(n)
-            # HACK: Python 3.4 requires int to complex promotion
-            self[n] = complex(v)
+            if isinstance(v, (tuple, list)):
+                r, a = v
+                self[n] = rect(r, 2 * pi * a / 360)
+            else:
+                # HACK: Python 3.4 requires int to complex promotion
+                self[n] = complex(v)
     
     def __add__(self, other):
         return Series(self, other)
@@ -144,7 +151,7 @@ class Component:
                 if V is None:
                     continue
                 if not isclose(self[K], V):
-                    errors.append(f'{D} -> {K}: {self[K]} != {V}')
+                    errors.append('{} -> {}: {} != {}'.format(D, K, self[K], V))
         if errors:
             raise AssertionError('\n'.join(errors))
 
