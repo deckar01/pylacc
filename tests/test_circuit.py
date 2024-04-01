@@ -18,6 +18,11 @@ class TestComponent:
         assert repr(c) == 'Component1( E=12V, I=4A, Z=3Ω, P=48W )'
         c.verify()
 
+    def test_incongruency(self):
+        c = Component(**{K: V + 1 for K, V in C1.items()})
+        with pytest.raises(AssertionError):
+            c.verify()
+
 class TestSeries:
     @pytest.mark.parametrize('T', permutations(C1.items(), 2))
     def test_split_solve(self, T):
@@ -66,11 +71,11 @@ class TestShorthand:
 C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'P': 2400-2400j}
 
 class TestAlernatingCurrent:
-    @pytest.mark.parametrize('Z', [-100j, 100j])
-    def test_no_frequency(self, Z):
-        c = s(e=120) + l(r=24.1e3) + l(z=Z)
-        with pytest.raises(ValueError, match='Reactive loads require an AC frequency'):
-            repr(c)
+    @pytest.mark.parametrize(('Z', 'A'), [(-100j, 1), (100j, -1)])
+    def test_no_frequency(self, Z, A):
+        c = l(e=120, z=100 + Z)
+        assert repr(c) == f'Load1( E=120V∠0°, I=849mA∠{A * 45}°, Z=141Ω∠{-A * 45}°, P=102W∠{A * 45}° )'
+        c.verify()
 
     @pytest.mark.parametrize('T', combinations(C2.items(), 2))
     def test_solve(self, T):

@@ -33,14 +33,12 @@ UNITS = {
     'L': 'H',
 }
 
-PHASED = 'EIZP'
+PHASED = ('E', 'I', 'Z', 'P')
 
-def norm(t, v, f):
+def norm(t, v, AC):
     if v is None:
         return t + '=?'
-    if f is None and v.imag:
-        raise ValueError('Reactive loads require an AC frequency')
-    if t in PHASED and f is not None:
+    if t in PHASED and AC:
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
     else:
@@ -143,6 +141,8 @@ class Component:
                 if not P:
                     continue
                 V = law(**P)
+                if V is None:
+                    continue
                 if not isclose(self[K], V):
                     errors.append(f'{D} -> {K}: {self[K]} != {V}')
         if errors:
@@ -150,7 +150,7 @@ class Component:
 
     def __str__(self, indent=''):
         K = self.show + tuple(p for p in self.optional if self[p] is not None)
-        parts = [norm(p, self[p], self['F']) for p in K]
+        parts = [norm(p, self[p], self.AC) for p in K]
         return '{}( {} )'.format(self.name, ', '.join(parts))
     
     def __repr__(self):
@@ -180,6 +180,10 @@ Component.law(F=('Z', 'L'))(lambda Z, L: Z.imag / (2 * pi * L))
 
 Component.law(Y=('Z',))(lambda Z: 1 / Z)
 Component.law(Z=('Y',))(lambda Y: 1 / Y)
+
+Component.law(AC=('F',))(lambda F: True if F is not None else None)
+for P in PHASED:
+    Component.law(AC=(P,))(lambda **V: True if not isclose(next(iter(V.values())).imag, 0) else None)
 
 class Load(Component):
     optional = ('L', 'C')
