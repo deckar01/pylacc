@@ -70,47 +70,47 @@ class TestShorthand:
 
     def test_phasor(self):
         c = l(e=(12, 45))
-        assert repr(c) == 'Load1( E=12V∠45°, I=?, Z=?, P=? )'
+        assert repr(c) == 'Load1( E=12V∠45°, I=?, Z=?, PA=? )'
         c.verify()
 
-C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'P': 2400-2400j}
+C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'PA': 2400-2400j}
 
 class TestAlernatingCurrent:
     @pytest.mark.parametrize(('Z', 'A'), [(-100j, 1), (100j, -1)])
     def test_no_frequency(self, Z, A):
         c = l(e=120, z=100 + Z)
-        assert repr(c) == f'Load1( E=120V∠0°, I=849mA∠{A * 45}°, Z=141Ω∠{-A * 45}°, P=102W∠{A * 45}° )'
+        assert repr(c) == f'Load1( E=120V∠0°, I=849mA∠{A * 45}°, Z=141Ω∠{-A * 45}°, PA=102VA )'
         c.verify()
 
     @pytest.mark.parametrize('T', combinations(C2.items(), 2))
     def test_solve(self, T):
         c = Component(F=60, **dict(T))
-        assert repr(c) == 'Component1( E=120V∠0°, I=28.3A∠-45°, Z=4.24Ω∠45°, P=3.39kW∠-45° )'
+        assert repr(c) == 'Component1( E=120V∠0°, I=28.3A∠-45°, Z=4.24Ω∠45°, PA=3.39kVA, PT=4.8kW, PR=4.8kVAR )'
         c.verify()
 
     def test_capacitor(self):
         c = s(e=120, f=60) + l(r=24.1e3) + l(c=110e-9)
-        assert repr(c).startswith('Series1( E=120V∠0°, I=3.52mA∠45°, P=422mW∠45° )')
+        assert repr(c).startswith('Series1( E=120V∠0°, I=3.52mA∠45°, PA=422mVA, PT=598mW, PR=597mVAR )')
         c.verify()
 
     def test_inductor(self):
         c = s(e=120, f=60) + l(r=829e-3) + l(l=2.2e-3)
-        assert repr(c).startswith('Series1( E=120V∠0°, I=102A∠-45°, P=12.3kW∠-45° )')
+        assert repr(c).startswith('Series1( E=120V∠0°, I=102A∠-45°, PA=12.3kVA, PT=17.4kW, PR=17.4kVAR )')
         c.verify()
 
     def test_reverse_impedence(self):
         c = s(e=120, f=60) + l(z=2) + l(z=2j) + l(z=-2j)
-        assert 'Series1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0° )' in repr(c)
-        assert 'Load2( E=120V∠90°, I=60A∠0°, Z=2Ω∠90°, P=7.2kW∠90°, L=5.31mH )' in repr(c)
-        assert 'Load3( E=120V∠-90°, I=60A∠0°, Z=2Ω∠-90°, P=7.2kW∠-90°, C=1.33mF )' in repr(c)
+        assert 'Series1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, PT=7.2kW )' in repr(c)
+        assert 'Load2( E=120V∠90°, I=60A∠0°, Z=2Ω∠90°, PA=7.2kVA, L=5.31mH )' in repr(c)
+        assert 'Load3( E=120V∠-90°, I=60A∠0°, Z=2Ω∠-90°, PA=7.2kVA, C=1.33mF )' in repr(c)
         c.verify()
 
     def test_reverse_cap_frequency(self):
         c = s(e=120) + l(z=2) + l(z=2j) + l(z=-2j, c=2.654e-3)
-        assert 'Source1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0°, F=30Hz )' in repr(c)
+        assert 'Source1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, F=30Hz )' in repr(c)
         c.verify()
 
     def test_reverse_ind_frequency(self):
         c = s(e=120) + l(z=2) + l(z=2j, l=2.654e-3) + l(z=-2j)
-        assert 'Source1( E=120V∠0°, I=60A∠0°, P=7.2kW∠0°, F=120Hz )' in repr(c)
+        assert 'Source1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, F=120Hz )' in repr(c)
         c.verify()

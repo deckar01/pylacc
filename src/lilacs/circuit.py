@@ -28,24 +28,41 @@ UNITS = {
     'I': 'A',
     'Z': 'Ω',
     'P': 'W',
+    'PT': 'W',
+    'PA': 'VA',
+    'PR': 'VAR',
     'F': 'Hz',
     'C': 'F',
     'L': 'H',
 }
 
-PHASED = ('E', 'I', 'Z', 'P')
+PHASED = ('E', 'I', 'Z')
 
 def isclose(a, b):
     return abs(a - b) < 1e-9
 
+OPS = ('!',)
+
+def name(P):
+    return P[1:] if P[0] in OPS else P
+
+def op(P, V):
+    if P[0] == '!':
+        return True if V is None else None
+    return V
+
 def norm(t, v, AC):
+    if not AC and t == 'PA':
+        t = 'P'
+    if not AC and t == 'PT':
+        return None
     if v is None:
         return t + '=?'
     if t in PHASED and AC:
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
     else:
-        v = v.real
+        v = abs(v)
         phase = ''
     mag10 = floor(log10(abs(v)))
     mag1k = floor(mag10 / 3)
@@ -68,8 +85,8 @@ def all(prop, G):
     return [c[prop] for c in G]
 
 class Component:
-    show = ('E', 'I', 'Z', 'P')
-    optional = ()
+    show = ('E', 'I', 'Z', 'PA')
+    optional = ('PT', 'PR')
     laws = {}
     counter = {}
     props = set()
@@ -84,6 +101,7 @@ class Component:
         for n, v in kwargs.items():
             n = n.upper()
             if n == 'R': n = 'Z'
+            if n == 'P': n = 'PA'
             self.given.append(n)
             if isinstance(v, (tuple, list)):
                 r, a = v
@@ -120,7 +138,8 @@ class Component:
         return (p for p in self.props if self[p] is None)
     
     def have(self, D):
-        P = {k: self[k] for k in D if self[k] is not None}
+        P = {k: op(k, self[name(k)]) for k in D}
+        P = {k: v for k, v in P.items() if v is not None}
         return P if len(P) == len(D) else None
 
     def solve(self):
@@ -158,7 +177,7 @@ class Component:
     def __str__(self, indent=''):
         K = self.show + tuple(p for p in self.optional if self[p] is not None)
         parts = [norm(p, self[p], self.AC) for p in K]
-        return '{}( {} )'.format(self.name, ', '.join(parts))
+        return '{}( {} )'.format(self.name, ', '.join(p for p in parts if p))
     
     def __repr__(self):
         self.solve()
@@ -166,24 +185,36 @@ class Component:
         return str(self)
 
 Component.law(Z=('E', 'I'))(lambda E, I: E / I)
-Component.law(Z=('P', 'E'))(lambda P, E: E * E / P)
-Component.law(Z=('P', 'I'))(lambda P, I: P / (I * I))
-Component.law(P=('E', 'I'))(lambda E, I: E * I)
-Component.law(P=('E', 'Z'))(lambda E, Z: E * E / Z)
-Component.law(P=('I', 'Z'))(lambda I, Z: I * I * Z)
+Component.law(Z=('PA', 'E'))(lambda PA, E: E * E / PA)
+Component.law(Z=('PA', 'I'))(lambda PA, I: PA / (I * I))
+Component.law(PA=('E', 'I'))(lambda E, I: E * I)
+Component.law(PA=('E', 'Z'))(lambda E, Z: E * E / Z)
+Component.law(PA=('I', 'Z'))(lambda I, Z: I * I * Z)
 Component.law(E=('I', 'Z'))(lambda I, Z: I * Z)
-Component.law(E=('P', 'I'))(lambda P, I: P / I)
-# Component.law(E=('P', 'Z'))(lambda P, Z: sqrt(P * Z)) # TODO: Reactive signs are lost in sqrt
+Component.law(E=('PA', 'I'))(lambda PA, I: PA / I)
+# Component.law(E=('PA', 'Z'))(lambda PA, Z: sqrt(PA * Z)) # TODO: Reactive signs are lost in sqrt
 Component.law(I=('E', 'Z'))(lambda E, Z: E / Z)
-Component.law(I=('P', 'E'))(lambda P, E: P / E)
-Component.law(I=('P', 'Z'))(lambda P, Z: sqrt(P / Z))
+Component.law(I=('PA', 'E'))(lambda PA, E: PA / E)
+Component.law(I=('PA', 'Z'))(lambda PA, Z: sqrt(PA / Z))
 
-Component.law(Z=('C', 'F'))(lambda C, F: -1j / (2 * pi * F * C))
-Component.law(Z=('L', 'F'))(lambda L, F: 1j * 2 * pi * F * L)
-Component.law(C=('Z', 'F'))(lambda Z, F: -1 / (2 * pi * F * Z.imag) if Z.imag < 0 and isclose(Z.real, 0) else None)
-Component.law(L=('Z', 'F'))(lambda Z, F: Z.imag / (2 * pi * F) if Z.imag > 0 and isclose(Z.real, 0) else None)
-Component.law(F=('Z', 'C'))(lambda Z, C: -1 / (2 * pi * C * Z.imag))
-Component.law(F=('Z', 'L'))(lambda Z, L: Z.imag / (2 * pi * L))
+Component.law(PT=('E', 'Z'))(lambda E, Z: E * E / Z.real if not isclose(Z.real, 0) else None)
+Component.law(PR=('E', 'Z'))(lambda E, Z: 1j * E * E / Z.imag if not isclose(Z.imag, 0) else None)
+
+Component.law(R=('Z',))(lambda Z: Z.real)
+Component.law(XC=('Z',))(lambda Z: -Z.imag if Z.imag < 0 and not isclose(Z.imag, 0) else None)
+Component.law(XL=('Z',))(lambda Z: Z.imag if Z.imag > 0 and not isclose(Z.imag, 0) else None)
+Component.law(Z=('R', 'XC'))(lambda R, XC: R - 1j * XC)
+Component.law(Z=('R', 'XL'))(lambda R, XL: R + 1j * XL)
+Component.law(Z=('XC', '!R'))(lambda XC, **_: -1j * XC)
+Component.law(Z=('XL', '!R'))(lambda XL, **_: 1j * XL)
+Component.law(Z=('R', '!XC', '!XL'))(lambda R, **_: R)
+
+Component.law(XC=('C', 'F'))(lambda C, F: 1 / (2 * pi * F * C))
+Component.law(XL=('L', 'F'))(lambda L, F: 2 * pi * F * L)
+Component.law(C=('XC', 'F'))(lambda XC, F: 1 / (2 * pi * F * XC))
+Component.law(L=('XL', 'F'))(lambda XL, F: XL / (2 * pi * F))
+Component.law(F=('XC', 'C'))(lambda XC, C: 1 / (2 * pi * C * XC))
+Component.law(F=('XL', 'L'))(lambda XL, L: XL / (2 * pi * L))
 
 Component.law(Y=('Z',))(lambda Z: 1 / Z)
 Component.law(Z=('Y',))(lambda Y: 1 / Y)
@@ -196,11 +227,11 @@ class Load(Component):
     optional = ('L', 'C')
 
 class Source(Component):
-    show = ('E', 'I', 'P')
+    show = ('E', 'I', 'PA')
     optional = ('F',)
 
 class Circuit(Component):
-    show = ('E', 'I', 'P')
+    show = ('E', 'I', 'PA')
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
@@ -218,7 +249,9 @@ class Circuit(Component):
     def sources(self):
         return [S for S in self.nodes if isinstance(S, Source)]
     
-    def solve_constant(self, prop, G):
+    def constant(self, prop, G=None):
+        if G is None:
+            G = self.nodes
         change = False
         if not given(self[prop]):
             for c in G:
@@ -234,7 +267,7 @@ class Circuit(Component):
                 change = True
         return change
     
-    def solve_linear(self, prop):
+    def linear(self, prop):
         change = False
         if not given(self[prop]) and given(*all(prop, self.loads)):
             self[prop] = sum([value for value in all(prop, self.loads)])
@@ -274,13 +307,13 @@ class Series(Circuit):
     def _solve(self):
         change = super()._solve()
         # TODO: Fix multiple sources
-        change |= self.solve_constant('E', self.sources)
-        change |= self.solve_constant('I', self.sources)
-        change |= self.solve_constant('I', self.loads)
-        change |= self.solve_constant('F', self.nodes)
-        change |= self.solve_linear('Z')
-        change |= self.solve_linear('E')
-        change |= self.solve_linear('P')
+        change |= self.constant('E', self.sources)
+        change |= self.constant('I', self.sources)
+        change |= self.constant('I', self.loads)
+        change |= self.constant('F')
+        change |= self.linear('Z')
+        change |= self.linear('E')
+        change |= self.linear('PA')
         return change
     
     def __add__(self, other):
@@ -290,11 +323,13 @@ class Series(Circuit):
 class Parallel(Circuit):
     def _solve(self):
         change = super()._solve()
-        change |= self.solve_constant('E', self.nodes)
-        change |= self.solve_constant('F', self.nodes)
-        change |= self.solve_linear('I')
-        change |= self.solve_linear('P')
-        change |= self.solve_linear('Y')
+        change |= self.constant('E', self.sources)
+        change |= self.constant('I', self.sources)
+        change |= self.constant('E')
+        change |= self.constant('F')
+        change |= self.linear('I')
+        change |= self.linear('PA')
+        change |= self.linear('Y')
         return change
 
     def __truediv__(self, other):
