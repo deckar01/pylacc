@@ -1,7 +1,14 @@
-# ruff: noqa: E741, E701
+# ruff: noqa: E701, E731, E741
 
 from cmath import polar, sqrt, rect
 from math import log10, floor, pi
+
+try:
+    # HACK: TI-nspire renders dashes at double width
+    import ti_system as _ # noqa: F401
+    DELIM = ('-', '  ')
+except ImportError:
+    DELIM = ('-', ' ')
 
 
 k = 1e3
@@ -27,6 +34,8 @@ UNITS = {
     'E': 'V',
     'I': 'A',
     'Z': 'Ω',
+    'XL': 'Ω',
+    'XC': 'Ω',
     'P': 'W',
     'PT': 'W',
     'PA': 'VA',
@@ -51,14 +60,14 @@ def op(P, V):
         return True if V is None else None
     return V
 
-def norm(t, v, AC):
+def norm(t, v, AC, given):
     if not AC and t == 'PA':
         t = 'P'
     if not AC and t == 'PT':
         return None
     if v is None:
         return t + '=?'
-    if t in PHASED and AC:
+    if (t in PHASED and AC) and not (given and isclose(v, abs(v))) and not isclose(v.imag, 0):
         v, a = polar(v)
         phase = '∠' + '{:.3g}°'.format(360 * a / 2 / pi)
     else:
@@ -70,7 +79,7 @@ def norm(t, v, AC):
     v = round(v, 2)
     v *= 10 ** mag10
     v /= 1000 ** mag1k
-    return '{}={:.3g}{}{}{}'.format(t, v, MAG[mag1k], UNITS[t], phase)
+    return '{:.3g}{}{}{}'.format(v, MAG[mag1k], UNITS[t], phase)
 
 def count(*V):
     T = 0
@@ -85,18 +94,14 @@ def all(prop, G):
     return [c[prop] for c in G]
 
 class Component:
-    show = ('E', 'I', 'Z', 'PA')
-    optional = ('PT', 'PR')
+    show = ('Z', 'E', 'I')
+    optional = ()
     laws = {}
-    counter = {}
     props = set()
+    name = '?'
+    TPL = '{}({})'
 
     def __init__(self, **kwargs):
-        name = self.__class__.__name__
-        if name not in Component.counter:
-            Component.counter[name] = 0
-        Component.counter[name] += 1
-        self.name = name + str(Component.counter[name])
         self.given = []
         for n, v in kwargs.items():
             n = n.upper()
@@ -174,14 +179,24 @@ class Component:
         if errors:
             raise AssertionError('\n'.join(errors))
 
-    def __str__(self, indent=''):
-        K = self.show + tuple(p for p in self.optional if self[p] is not None)
-        parts = [norm(p, self[p], self.AC) for p in K]
-        return '{}( {} )'.format(self.name, ', '.join(p for p in parts if p))
+    def __str__(self, indent='', Q=None):
+        G = tuple(self.given)
+        if Q is None:
+            Q = self.show + tuple(p for p in self.optional if self[p] is not None)
+        Q = tuple(q for q in Q if q not in G)
+        V = ''
+        GN = [norm(p, self[p], self.AC, True) for p in G]
+        GN = [p for p in GN if p]
+        if GN:
+            V += ' '.join(GN) + ': '
+        QN = [norm(p, self[p], self.AC, False) for p in Q]
+        QN = [p for p in QN if p]
+        if QN:
+            V += ' '.join(QN)
+        return self.TPL.format(self.name, V)
     
     def __repr__(self):
         self.solve()
-        Component.counter.clear()
         return str(self)
 
 Component.law(Z=('E', 'I'))(lambda E, I: E / I)
@@ -224,14 +239,37 @@ for P in PHASED:
     Component.law(AC=(P,))(lambda **V: True if not isclose(next(iter(V.values())).imag, 0) else None)
 
 class Load(Component):
-    optional = ('L', 'C')
+    show = ('E', 'I')
+    optional = ('L', 'C', 'XL', 'XC')
+
+    @property
+    def name(self):
+        R = self.R is not None and not isclose(self.R, 0)
+        C = count(self.XC, self.C) > 0
+        L = count(self.XL, self.L) > 0
+        U = sum(int(v) for v in [R, C, L]) - 1
+        if U: return '?'
+        if R: return 'R'
+        if C: return 'C'
+        if L: return 'L'
 
 class Source(Component):
+    name = 'S'
     show = ('E', 'I', 'PA')
     optional = ('F',)
+    TPL = '{}[{}]'
+
+    def __init__(self, e=None, f=None, **kwargs):
+        extra = {}
+        if e is not None:
+            extra['e'] = e
+        if f is not None:
+            extra['f'] = f
+        super().__init__(**{k: v for k, v in tuple(extra.items()) + tuple(kwargs.items())})
 
 class Circuit(Component):
-    show = ('E', 'I', 'PA')
+    show = ('E', 'I')
+    TPL = '{}<{}>'
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
@@ -297,13 +335,14 @@ class Circuit(Component):
             c.verify()
     
     def __str__(self, indent=''):
-        indent += '  '
+        indent = indent.replace(DELIM[0], DELIM[1]) + self.name + DELIM[0]
         return super().__str__(indent) + ''.join(
             '\n' + indent + c.__str__(indent)
             for c in self.nodes
         )
 
 class Series(Circuit):
+    name = '+'
     def _solve(self):
         change = super()._solve()
         # TODO: Fix multiple sources
@@ -321,6 +360,7 @@ class Series(Circuit):
         return self
 
 class Parallel(Circuit):
+    name = '/'
     def _solve(self):
         change = super()._solve()
         change |= self.constant('E', self.sources)
@@ -336,5 +376,9 @@ class Parallel(Circuit):
         self.nodes.append(other)
         return self
 
-l = Load
 s = Source
+r = lambda v, **k: Load(r=v, **k)
+xc = lambda v, **k: Load(xc=v, **k)
+xl = lambda v, **k: Load(xl=v, **k)
+c = lambda v, **k: Load(c=v, **k)
+l = lambda v, **k: Load(l=v, **k)

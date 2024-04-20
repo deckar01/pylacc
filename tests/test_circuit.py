@@ -1,116 +1,154 @@
 from itertools import combinations, permutations
 import pytest
 
-from lilacs.circuit import Series, Parallel, Load, Source, Component, s, l
+from lilacs.circuit import Series, Parallel, Load, Source, Component
+from lilacs.circuit import s, r, xc, xl, c, l
 
 
-C1 = {'E': 12, 'I': 4, 'Z': 3, 'P': 48}
+C1 = {'E': 12, 'I': 4, 'Z': 3, 'PA': 48}
 
 class TestComponent:
     def test_unknown(self):
-        c = Component()
-        assert repr(c) == 'Component1( E=?, I=?, Z=?, P=? )'
-        c.verify()
+        C = Component()
+        assert repr(C) == '?(Z=? E=? I=?)'
+        C.verify()
 
     @pytest.mark.parametrize('T', combinations(C1.items(), 2))
     def test_solve(self, T):
-        c = Component(**dict(T))
-        assert repr(c) == 'Component1( E=12V, I=4A, Z=3Ω, P=48W )'
-        c.verify()
+        C = Component(**dict(T))
+        C.solve()
+        for k, v in C1.items():
+            assert C[k] == v
+        C.verify()
 
     def test_incongruency(self):
-        c = Component(**{K: V + 1 for K, V in C1.items()})
+        C = Component(**{K: V + 1 for K, V in C1.items()})
         with pytest.raises(AssertionError):
-            c.verify()
+            C.verify()
 
 class TestSeries:
     @pytest.mark.parametrize('T', permutations(C1.items(), 2))
     def test_split_solve(self, T):
-        c = Series(**dict(T[:1]))(Load(**dict(T[1:])))
-        assert repr(c) == 'Series1( E=12V, I=4A, P=48W )\n  Load1( E=12V, I=4A, Z=3Ω, P=48W )'
-        c.verify()
+        L = Load(**dict(T[1:]))
+        C = Series(**dict(T[:1]))(L)
+        C.solve()
+        for k, v in C1.items():
+            assert C[k] == v
+            assert L[k] == v
+        C.verify()
 
     @pytest.mark.parametrize('T', [dict([p]) for p in C1.items() if p[0] != 'E'])
     def test_voltage_source(self, T):
-        c = Series()(Source(E=12), Load(**T))
-        assert repr(c) == 'Series1( E=12V, I=4A, P=48W )\n  Source1( E=12V, I=4A, P=48W )\n  Load1( E=12V, I=4A, Z=3Ω, P=48W )'
-        c.verify()
+        S = Source(12)
+        L = Load(**T)
+        C = Series()(S, L)
+        C.solve()
+        for k, v in C1.items():
+            assert C[k] == v
+            assert S[k] == v
+            assert L[k] == v
+        C.verify()
 
     @pytest.mark.parametrize('T', [dict([p]) for p in C1.items() if p[0] != 'I'])
     def test_current_source(self, T):
-        c = Series()(Source(I=4), Load(**T))
-        assert repr(c) == 'Series1( E=12V, I=4A, P=48W )\n  Source1( E=12V, I=4A, P=48W )\n  Load1( E=12V, I=4A, Z=3Ω, P=48W )'
-        c.verify()
+        S = Source(I=4)
+        L = Load(**T)
+        C = Series()(S, L)
+        C.solve()
+        for k, v in C1.items():
+            assert C[k] == v
+            assert S[k] == v
+            assert L[k] == v
+        C.verify()
 
     def test_loads(self):
-        c = Series(E=12)(Load(Z=1), Load(Z=2))
-        assert repr(c) == 'Series1( E=12V, I=4A, P=48W )\n  Load1( E=4V, I=4A, Z=1Ω, P=16W )\n  Load2( E=8V, I=4A, Z=2Ω, P=32W )'
-        c.verify()
+        C = Series(E=12)(Load(Z=1), Load(Z=2))
+        assert repr(C) == '''\
++<12V: 4A>
++-R(1Ω: 4V 4A)
++-R(2Ω: 8V 4A)\
+'''
+        C.verify()
 
 class TestParallel:
     @pytest.mark.parametrize('T', permutations(C1.items(), 2))
     def test_split_solve(self, T):
-        c = Parallel(**dict(T[:1]))(Load(**dict(T[1:])))
-        assert repr(c) == 'Parallel1( E=12V, I=4A, P=48W )\n  Load1( E=12V, I=4A, Z=3Ω, P=48W )'
-        c.verify()
+        L = Load(**dict(T[1:]))
+        C = Parallel(**dict(T[:1]))(L)
+        C.solve()
+        for k, v in C1.items():
+            assert C[k] == v
+            assert L[k] == v
+        C.verify()
 
     def test_loads(self):
-        c = Parallel(E=12)(Load(Z=6), Load(Z=6))
-        assert repr(c) == 'Parallel1( E=12V, I=4A, P=48W )\n  Load1( E=12V, I=2A, Z=6Ω, P=24W )\n  Load2( E=12V, I=2A, Z=6Ω, P=24W )'
-        c.verify()
+        C = Parallel(E=12)(Load(Z=6), Load(Z=6))
+        assert repr(C) == '''\
+/<12V: 4A>
+/-R(6Ω: 12V 2A)
+/-R(6Ω: 12V 2A)\
+'''
+        C.verify()
 
 class TestShorthand:
     def test_calculator_mode(self):
-        c = s(e=12) + (l(r=9) / l(r=9) / l(r=9)) + l(r=3)
-        assert Component.counter['Series'] == 1
-        assert Component.counter['Parallel'] == 1
-        assert Component.counter['Load'] == 4
-        assert repr(c).startswith('Series1( E=12V, I=2A, P=24W )')
-        c.verify()
+        C = s(12) + (r(9) / r(9) / r(9)) + r(3)
+        assert repr(C) == '''\
++<12V 2A>
++-S[12V: 2A 24W]
++-/<6V 2A>
++ /-R(9Ω: 6V 667mA)
++ /-R(9Ω: 6V 667mA)
++ /-R(9Ω: 6V 667mA)
++-R(3Ω: 6V 2A)\
+'''
+        C.verify()
 
     def test_phasor(self):
-        c = l(e=(12, 45))
-        assert repr(c) == 'Load1( E=12V∠45°, I=?, Z=?, PA=? )'
-        c.verify()
+        C = s((12, 45))
+        assert repr(C) == 'S[12V∠45°: I=? PA=?]'
+        C.verify()
 
 C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'PA': 2400-2400j}
 
 class TestAlernatingCurrent:
-    @pytest.mark.parametrize(('Z', 'A'), [(-100j, 1), (100j, -1)])
-    def test_no_frequency(self, Z, A):
-        c = l(e=120, z=100 + Z)
-        assert repr(c) == f'Load1( E=120V∠0°, I=849mA∠{A * 45}°, Z=141Ω∠{-A * 45}°, PA=102VA )'
-        c.verify()
+    @pytest.mark.parametrize(('D'), [-1, 1])
+    def test_no_frequency(self, D):
+        C = s(120, z=100 + 100j * D)
+        assert repr(C) == f'S[120V 141Ω∠{D * 45}°: 849mA∠{-D * 45}° 102VA]'
+        C.verify()
 
     @pytest.mark.parametrize('T', combinations(C2.items(), 2))
     def test_solve(self, T):
-        c = Component(F=60, **dict(T))
-        assert repr(c) == 'Component1( E=120V∠0°, I=28.3A∠-45°, Z=4.24Ω∠45°, PA=3.39kVA, PT=4.8kW, PR=4.8kVAR )'
-        c.verify()
+        C = Component(F=60, **dict(T))
+        C.solve()
+        for k, v in C2.items():
+            assert C[k] == v
+        C.verify()
 
     def test_capacitor(self):
-        c = s(e=120, f=60) + l(r=24.1e3) + l(c=110e-9)
-        assert repr(c).startswith('Series1( E=120V∠0°, I=3.52mA∠45°, PA=422mVA, PT=598mW, PR=597mVAR )')
-        c.verify()
+        C = s(120, 60) + r(24.1e3) + c(110e-9)
+        assert 'S[120V 60Hz: 3.52mA∠45° 422mVA]' in repr(C)
+        C.verify()
 
     def test_inductor(self):
-        c = s(e=120, f=60) + l(r=829e-3) + l(l=2.2e-3)
-        assert repr(c).startswith('Series1( E=120V∠0°, I=102A∠-45°, PA=12.3kVA, PT=17.4kW, PR=17.4kVAR )')
-        c.verify()
+        C = s(120, 60) + r(829e-3) + l(2.2e-3)
+        assert 'S[120V 60Hz: 102A∠-45° 12.3kVA]' in repr(C)
+        C.verify()
 
     def test_reverse_impedence(self):
-        c = s(e=120, f=60) + l(z=2) + l(z=2j) + l(z=-2j)
-        assert 'Series1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, PT=7.2kW )' in repr(c)
-        assert 'Load2( E=120V∠90°, I=60A∠0°, Z=2Ω∠90°, PA=7.2kVA, L=5.31mH )' in repr(c)
-        assert 'Load3( E=120V∠-90°, I=60A∠0°, Z=2Ω∠-90°, PA=7.2kVA, C=1.33mF )' in repr(c)
-        c.verify()
+        C = s(120, 60) + r(2) + xl(2) + xc(2)
+        assert 'S[120V 60Hz: 60A 7.2kVA]' in repr(C)
+        assert 'L(2Ω: 120V∠90° 60A 5.31mH)' in repr(C)
+        assert 'C(2Ω: 120V∠-90° 60A 1.33mF)' in repr(C)
+        C.verify()
 
     def test_reverse_cap_frequency(self):
-        c = s(e=120) + l(z=2) + l(z=2j) + l(z=-2j, c=2.654e-3)
-        assert 'Source1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, F=30Hz )' in repr(c)
-        c.verify()
+        C = s(120) + r(2) + xl(2) + c(2.654e-3, xc=2)
+        assert 'S[120V: 60A 7.2kVA 30Hz]' in repr(C)
+        C.verify()
 
     def test_reverse_ind_frequency(self):
-        c = s(e=120) + l(z=2) + l(z=2j, l=2.654e-3) + l(z=-2j)
-        assert 'Source1( E=120V∠0°, I=60A∠0°, PA=7.2kVA, F=120Hz )' in repr(c)
-        c.verify()
+        C = s(120) + r(2) + l(2.654e-3, xl=2) + xc(2)
+        assert 'S[120V: 60A 7.2kVA 120Hz]' in repr(C)
+        C.verify()
