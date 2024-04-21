@@ -63,7 +63,7 @@ def op(P, V):
 def norm(t, v, AC, given):
     if not AC and t == 'PA':
         t = 'P'
-    if not AC and t == 'PT':
+    if not AC and t in ('PT', 'PR'):
         return None
     if v is None:
         return t + '=?'
@@ -92,6 +92,13 @@ def given(*V):
 
 def all(prop, G):
     return [c[prop] for c in G]
+
+class Filter:
+    def __init__(self, value):
+        self.value = value
+    
+    def __repr__(self):
+        return self.value
 
 class Component:
     show = ('Z', 'E', 'I')
@@ -178,6 +185,16 @@ class Component:
                     errors.append('{} -> {}: {} != {}'.format(D, K, self[K], V))
         if errors:
             raise AssertionError('\n'.join(errors))
+        
+    @property
+    def p(self):
+        self.solve()
+        return Filter(self.__str__(Q=('PT', 'PR', 'PA')))
+        
+    @property
+    def z(self):
+        self.solve()
+        return Filter(self.__str__(Q=('Z',)))
 
     def __str__(self, indent='', Q=None):
         G = tuple(self.given)
@@ -188,9 +205,11 @@ class Component:
         GN = [norm(p, self[p], self.AC, True) for p in G]
         GN = [p for p in GN if p]
         if GN:
-            V += ' '.join(GN) + ': '
+            V += ' '.join(GN)
         QN = [norm(p, self[p], self.AC, False) for p in Q]
         QN = [p for p in QN if p]
+        if GN and QN:
+            V += ': '
         if QN:
             V += ' '.join(QN)
         return self.TPL.format(self.name, V)
@@ -334,10 +353,10 @@ class Circuit(Component):
         for c in self.nodes:
             c.verify()
     
-    def __str__(self, indent=''):
+    def __str__(self, indent='', Q=None):
         indent = indent.replace(DELIM[0], DELIM[1]) + self.name + DELIM[0]
-        return super().__str__(indent) + ''.join(
-            '\n' + indent + c.__str__(indent)
+        return super().__str__(indent, Q) + ''.join(
+            '\n' + indent + c.__str__(indent, Q)
             for c in self.nodes
         )
 

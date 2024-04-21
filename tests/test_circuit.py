@@ -109,6 +109,28 @@ class TestShorthand:
         assert repr(C) == 'S[12V∠45°: I=? PA=?]'
         C.verify()
 
+    def test_power_mode(self):
+        C = s(12) + r(3) / r(3)
+        assert repr(C.p) == '''\
++<96W>
++-S[12V: 96W]
++-/<96W>
++ /-R(3Ω: 48W)
++ /-R(3Ω: 48W)\
+'''
+        C.verify()
+
+    def test_impedence_mode(self):
+        C = s(12) + r(3) / r(3)
+        assert repr(C.z) == '''\
++<1.5Ω>
++-S[12V: 1.5Ω]
++-/<1.5Ω>
++ /-R(3Ω)
++ /-R(3Ω)\
+'''
+        C.verify()
+
 C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'PA': 2400-2400j}
 
 class TestAlernatingCurrent:
