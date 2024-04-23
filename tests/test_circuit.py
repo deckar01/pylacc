@@ -1,8 +1,8 @@
 from itertools import combinations, permutations
 import pytest
 
-from lilacs.circuit import Series, Parallel, Load, Source, Component
-from lilacs.circuit import s, r, xc, xl, c, l
+from pylacc.circuit import Series, Parallel, Load, Source, Component
+from pylacc.circuit import s, r, xc, xl, c, l
 
 
 C1 = {'E': 12, 'I': 4, 'Z': 3, 'PA': 48}

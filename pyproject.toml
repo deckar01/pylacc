@@ -3,13 +3,13 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "lilacs"
+name = "pylacc"
 version = "0.0.1"
 
 [tool.pytest.ini_options]
 addopts = [
     "--import-mode=importlib",
     "--cov-report=term-missing",
-    "--cov=lilacs",
+    "--cov=pylacc",
     "--cov-branch",
 ]
