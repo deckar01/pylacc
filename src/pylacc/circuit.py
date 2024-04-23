@@ -395,9 +395,10 @@ class Parallel(Circuit):
         self.nodes.append(other)
         return self
 
-s = Source
-r = lambda v, **k: Load(r=v, **k)
-xc = lambda v, **k: Load(xc=v, **k)
-xl = lambda v, **k: Load(xl=v, **k)
-c = lambda v, **k: Load(c=v, **k)
-l = lambda v, **k: Load(l=v, **k)
+e = lambda v=None, f=None, **k: Source(e=v, f=f, **k)
+i = lambda v=None, f=None, **k: Source(i=v, f=f, **k)
+r = lambda v=None, **k: Load(r=v, **k)
+xc = lambda v=None, **k: Load(xc=v, **k)
+xl = lambda v=None, **k: Load(xl=v, **k)
+c = lambda v=None, **k: Load(c=v, **k)
+l = lambda v=None, **k: Load(l=v, **k)
