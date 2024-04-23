@@ -81,7 +81,7 @@ def norm(t, v, AC, given):
     v = round(v, 2)
     v *= 10 ** mag10
     v /= 1000 ** mag1k
-    return '{:.3g}{}{}{}'.format(v, MAG[mag1k], UNITS[t], phase)
+    return '{:.3g}{}{}{}'.format(v, phase, MAG[mag1k], UNITS[t])
 
 def count(*V):
     T = 0
@@ -108,7 +108,6 @@ class Component:
     laws = {}
     props = set()
     name = '?'
-    TPL = '{}({})'
 
     def __init__(self, **kwargs):
         self.given = []
@@ -207,14 +206,12 @@ class Component:
         GN = [norm(p, self[p], self.AC, True) for p in G]
         GN = [p for p in GN if p]
         if GN:
-            V += ' '.join(GN)
+            V += '[' + ' '.join(GN) + ']'
         QN = [norm(p, self[p], self.AC, False) for p in Q]
         QN = [p for p in QN if p]
-        if GN and QN:
-            V += ': '
         if QN:
-            V += ' '.join(QN)
-        return self.TPL.format(self.name, V)
+            V += '(' + ' '.join(QN) + ')'
+        return self.name + V
     
     def __repr__(self):
         self.solve()
@@ -278,7 +275,6 @@ class Source(Component):
     name = 'S'
     show = ('E', 'I', 'PA')
     optional = ('F',)
-    TPL = '{}[{}]'
 
     def __init__(self, e=None, f=None, **kwargs):
         extra = {}
@@ -290,7 +286,6 @@ class Source(Component):
 
 class Circuit(Component):
     show = ('E', 'I')
-    TPL = '{}<{}>'
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
