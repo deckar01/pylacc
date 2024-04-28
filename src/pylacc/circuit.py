@@ -186,18 +186,20 @@ class Component:
                     errors.append('{} -> {}: {} != {}'.format(D, K, self[K], V))
         if errors:
             raise AssertionError('\n'.join(errors))
+
+    def __call__(self, *props):
+        self.solve()
+        return Filter(self.__str__(props))
         
     @property
     def p(self):
-        self.solve()
-        return Filter(self.__str__(Q=('PT', 'PR', 'PA')))
+        return self('PT', 'PR', 'PA')
         
     @property
     def z(self):
-        self.solve()
-        return Filter(self.__str__(Q=('Z',)))
+        return self('Z')
 
-    def __str__(self, indent='', Q=None):
+    def __str__(self, Q=None, indent=''):
         G = tuple(self.given)
         if Q is None:
             Q = self.show + tuple(p for p in self.optional if self[p] is not None)
@@ -285,10 +287,6 @@ class Circuit(Component):
         super().__init__(**kwargs)
         self.nodes = list(args)
 
-    def __call__(self, *nodes):
-        self.nodes.extend(nodes)
-        return self
-
     @property
     def loads(self):
         return [L for L in self.nodes if not isinstance(L, Source)]
@@ -343,11 +341,11 @@ class Circuit(Component):
         super().verify()
         for c in self.nodes:
             c.verify()
-    
-    def __str__(self, indent='', Q=None):
+
+    def __str__(self, Q=None, indent=''):
         indent = indent.replace(DELIM[0], DELIM[1]) + self.name + DELIM[0]
-        return super().__str__(indent, Q) + ''.join(
-            '\n' + indent + c.__str__(indent, Q)
+        return super().__str__(Q, indent) + ''.join(
+            '\n' + indent + c.__str__(Q, indent)
             for c in self.nodes
         )
 

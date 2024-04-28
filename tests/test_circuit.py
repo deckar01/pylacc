@@ -30,7 +30,7 @@ class TestSeries:
     @pytest.mark.parametrize('T', permutations(C1.items(), 2))
     def test_split_solve(self, T):
         L = Load(**dict(T[1:]))
-        C = Series(**dict(T[:1]))(L)
+        C = Series(L, **dict(T[:1]))
         C.solve()
         for k, v in C1.items():
             assert C[k] == v
@@ -41,7 +41,7 @@ class TestSeries:
     def test_voltage_source(self, T):
         S = Source(12)
         L = Load(**T)
-        C = Series()(S, L)
+        C = Series(S, L)
         C.solve()
         for k, v in C1.items():
             assert C[k] == v
@@ -53,7 +53,7 @@ class TestSeries:
     def test_current_source(self, T):
         S = Source(I=4)
         L = Load(**T)
-        C = Series()(S, L)
+        C = Series(S, L)
         C.solve()
         for k, v in C1.items():
             assert C[k] == v
@@ -62,7 +62,7 @@ class TestSeries:
         C.verify()
 
     def test_loads(self):
-        C = Series(E=12)(Load(Z=1), Load(Z=2))
+        C = Series(Load(Z=1), Load(Z=2), E=12)
         assert repr(C) == '''\
 +[12V](4A)
 +-R[1Ω](4V 4A)
@@ -74,7 +74,7 @@ class TestParallel:
     @pytest.mark.parametrize('T', permutations(C1.items(), 2))
     def test_split_solve(self, T):
         L = Load(**dict(T[1:]))
-        C = Parallel(**dict(T[:1]))(L)
+        C = Parallel(L, **dict(T[:1]))
         C.solve()
         for k, v in C1.items():
             assert C[k] == v
@@ -82,7 +82,7 @@ class TestParallel:
         C.verify()
 
     def test_loads(self):
-        C = Parallel(E=12)(Load(Z=6), Load(Z=6))
+        C = Parallel(Load(Z=6), Load(Z=6), E=12)
         assert repr(C) == '''\
 /[12V](4A)
 /-R[6Ω](12V 2A)
