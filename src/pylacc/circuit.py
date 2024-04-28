@@ -218,17 +218,11 @@ class Component:
         return str(self)
 
 Component.law(Z=('E', 'I'))(lambda E, I: E / I)
-Component.law(Z=('PA', 'E'))(lambda PA, E: E * E / PA)
-Component.law(Z=('PA', 'I'))(lambda PA, I: PA / (I * I))
 Component.law(PA=('E', 'I'))(lambda E, I: E * I)
 Component.law(PA=('E', 'Z'))(lambda E, Z: E * E / Z)
 Component.law(PA=('I', 'Z'))(lambda I, Z: I * I * Z)
 Component.law(E=('I', 'Z'))(lambda I, Z: I * Z)
-Component.law(E=('PA', 'I'))(lambda PA, I: PA / I)
-# Component.law(E=('PA', 'Z'))(lambda PA, Z: sqrt(PA * Z)) # TODO: Reactive signs are lost in sqrt
 Component.law(I=('E', 'Z'))(lambda E, Z: E / Z)
-Component.law(I=('PA', 'E'))(lambda PA, E: PA / E)
-Component.law(I=('PA', 'Z'))(lambda PA, Z: sqrt(PA / Z))
 
 Component.law(PT=('E', 'Z'))(lambda E, Z: E * E / Z.real if not isclose(Z.real, 0) else None)
 Component.law(PR=('E', 'Z'))(lambda E, Z: 1j * E * E / Z.imag if not isclose(Z.imag, 0) else None)

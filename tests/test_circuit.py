@@ -5,7 +5,7 @@ from pylacc.circuit import Series, Parallel, Load, Source, Component
 from pylacc.circuit import e, r, xc, xl, c, l
 
 
-C1 = {'E': 12, 'I': 4, 'Z': 3, 'PA': 48}
+C1 = {'E': 12, 'I': 4, 'Z': 3}
 
 class TestComponent:
     def test_unknown(self):
@@ -131,7 +131,7 @@ class TestShorthand:
 '''
         C.verify()
 
-C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j, 'PA': 2400-2400j}
+C2 = {'E': 120, 'I': 20 - 20j, 'Z': 3 + 3j}
 
 class TestAlernatingCurrent:
     @pytest.mark.parametrize(('D'), [-1, 1])
