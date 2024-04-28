@@ -76,6 +76,23 @@ Python Linear Analog Circuit Caclulator
 + /-R[300Ω](12V 40mA)
 ```
 
+## Groups
+
+Components can be grouped to prevent further concatenation.
+
+```
+FILTER = (l(1e-3) + c(0.0022e-6)).g
+C = e(10, 107e3) + FILTER + r(100)
+C.solve()
+FILTER
+```
+
+```
++(380∠-87.8°mV 99.9∠2.18°mA)
++-L[1mH](67.2∠92.2°V 99.9∠2.18°mA 672Ω)
++-C[2.2nF](67.6∠-87.8°V 99.9∠2.18°mA 676Ω)
+```
+
 ## TODO
 
 - Support multiple sources

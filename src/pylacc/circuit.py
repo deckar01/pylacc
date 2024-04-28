@@ -282,6 +282,7 @@ class Source(Component):
 
 class Circuit(Component):
     show = ('E', 'I')
+    lock = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(**kwargs)
@@ -294,6 +295,11 @@ class Circuit(Component):
     @property
     def sources(self):
         return [S for S in self.nodes if isinstance(S, Source)]
+
+    @property
+    def g(self):
+        self.lock = True
+        return self
     
     def constant(self, prop, G=None):
         if G is None:
@@ -364,6 +370,8 @@ class Series(Circuit):
         return change
     
     def __add__(self, other):
+        if self.lock:
+            return super().__add__(other)
         self.nodes.append(other)
         return self
 
@@ -381,6 +389,8 @@ class Parallel(Circuit):
         return change
 
     def __truediv__(self, other):
+        if self.lock:
+            return super().__truediv__(other)
         self.nodes.append(other)
         return self
 

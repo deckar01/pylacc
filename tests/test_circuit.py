@@ -174,3 +174,108 @@ class TestAlernatingCurrent:
         C = e(120) + r(2) + l(2.654e-3, xl=2) + xc(2)
         assert 'S[120V](60A 7.2kVA 120Hz)' in repr(C)
         C.verify()
+
+class TestFilter:
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_rc_low_pass(self, n):
+        fc = 339e3
+        f = fc * 2 ** n
+        CAP = c(0.0047e-6)
+        C = e(10, f) + r(100) + CAP
+        C.solve()
+        if f <= fc:
+            assert abs(CAP.E) >= 7.06
+        else:
+            assert abs(CAP.E) < 7.06
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_rc_high_pass(self, n):
+        fc = 339e3
+        f = fc * 2 ** n
+        R = r(100)
+        C = e(10, f) + c(0.0047e-6) + R
+        C.solve()
+        if f < fc:
+            assert abs(R.E) < 7.06
+        else:
+            assert abs(R.E) >= 7.06
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_rl_low_pass(self, n):
+        fc = 74.5e3
+        f = fc * 2 ** n
+        R = r(2.2e3)
+        C = e(10, f) + l(4.7e-3) + R
+        C.solve()
+        if f <= fc:
+            assert abs(R.E) >= 7.06
+        else:
+            assert abs(R.E) < 7.06
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_rl_high_pass(self, n):
+        fc = 74.5e3
+        f = fc * 2 ** n
+        IND = l(4.7e-3)
+        C = e(10, f) + r(2.2e3) + IND
+        C.solve()
+        if f < fc:
+            assert abs(IND.E) < 7.06
+        else:
+            assert abs(IND.E) >= 7.06
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_series_band_pass(self, n):
+        fc = 107e3
+        f = fc * 2 ** n
+        R = r(100)
+        C = e(10, f) + l(1e-3) + c(0.0022e-6) + R
+        C.solve()
+        if f == fc:
+            assert abs(R.E) > 9.9
+        else:
+            assert abs(R.E) < 7.07
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_parallel_band_pass(self, n):
+        fc = 107e3
+        f = fc * 2 ** n
+        TANK = (l(1e-3) / c(0.0022e-6)).g
+        C = e(10, f) + r(100) + TANK
+        C.solve()
+        if f == fc:
+            assert abs(TANK.E) > 9.9
+        else:
+            assert abs(TANK.E) < 9.9
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_series_band_stop(self, n):
+        fc = 107e3
+        f = fc * 2 ** n
+        SINK = (l(1e-3) + c(0.0022e-6)).g
+        C = e(10, f) + r(100) + SINK
+        C.solve()
+        if f == fc:
+            assert abs(SINK.E) < 0.4
+        else:
+            assert abs(SINK.E) > 9
+        C.verify()
+
+    @pytest.mark.parametrize('n', range(-4, 5))
+    def test_parallel_band_stop(self, n):
+        fc = 107e3
+        f = fc * 2 ** n
+        R = r(100)
+        C = e(10, f) + (l(1e-3) / c(0.0022e-6)) + R
+        C.solve()
+        if f == fc:
+            assert abs(R.E) < 0.1
+        else:
+            assert abs(R.E) > 2
+        C.verify()
